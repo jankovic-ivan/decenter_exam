@@ -1,0 +1,155 @@
+name: Playwright Tests on Custom Runner Extended
+
+on:
+    push:
+        branches: [main, master]
+    pull_request:
+        branches: [main, master]
+    workflow_dispatch:
+
+env:
+    URL: ${{ secrets.URL }}
+    API_URL: ${{ secrets.API_URL }}
+    USER_NAME: ${{ secrets.USER_NAME }}
+    EMAIL: ${{ secrets.EMAIL }}
+    PASSWORD: ${{ secrets.PASSWORD }}
+    DISPLAY_NAME: ${{ secrets.DISPLAY_NAME }}
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+concurrency:
+    group: 'pages'
+    cancel-in-progress: false
+
+jobs:
+    setup:
+        name: Setup Tests
+        timeout-minutes: 60
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Playwright Setup on Runner
+              uses: ./.github/actions/playwright-setup
+
+    api-test:
+        name: API Tests
+        needs: setup
+        timeout-minutes: 60
+        runs-on: ubuntu-latest
+        outputs:
+            api_outcome: ${{ steps.api.outcome }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Playwright Setup on Runner
+              uses: ./.github/actions/playwright-setup
+
+            - name: Run API tests
+              id: api
+              run: npm run test:api
+
+            - name: Upload Playwright Report
+              if: always()
+              uses: ./.github/actions/playwright-report
+              with:
+                  test-step-outcome: ${{ steps.api.outcome }}
+                  blob-report-upload: 'true'
+
+    ui-test:
+        name: UI Tests
+        needs: setup
+        timeout-minutes: 60
+        runs-on: ubuntu-latest
+        outputs:
+            ui_outcome: ${{ steps.ui.outcome }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Playwright Setup on Runner
+              uses: ./.github/actions/playwright-setup
+
+            - name: Run UI tests
+              id: ui
+              run: npm run test:ui
+
+            - name: Upload Playwright Report
+              if: always()
+              uses: ./.github/actions/playwright-report
+              with:
+                  test-step-outcome: ${{ steps.ui.outcome }}
+                  blob-report-upload: 'true'
+
+    merge-report:
+        name: Merge Report
+        if: always()
+        needs: [api-test, ui-test]
+        timeout-minutes: 60
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: lts/*
+
+            - name: Install Dependencies
+              run: npm ci
+
+            - name: Download blob reports from GitHub Actions Artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: all-blob-reports
+                  pattern: blob-report-*
+                  merge-multiple: true
+
+            - name: Merge into HTML Report
+              run: npx playwright merge-reports --reporter html ./all-blob-reports
+
+            - name: Upload HTML report
+              uses: actions/upload-artifact@v4
+              with:
+                  name: Merged HTML Reports
+                  path: playwright-report
+                  retention-days: 3
+
+    build-report:
+        name: Build Report
+        if: always()
+        needs: merge-report
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Download Merged HTML Reports
+              uses: actions/download-artifact@v4
+              with:
+                  name: Merged HTML Reports
+                  path: ./_site
+
+            - name: Upload artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./_site
+
+    deploy-report:
+        name: Deploy Report
+        if: always()
+        needs: build-report
+        environment:
+            name: github-pages
+            url: 'https://jankovic-ivan.github.io/decenter_techAssignment/'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4

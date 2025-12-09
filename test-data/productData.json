@@ -1,0 +1,20 @@
+{
+    "products": [
+        {
+            "id": 30,
+            "name": "Premium Polo T-Shirts",
+            "price": "Rs. 1500",
+            "brand": "Polo",
+            "category": {
+                "usertype": {
+                    "usertype": "Men"
+                },
+                "category": "Tshirts"
+            }
+        }
+    ],
+    "shirtSearchResults": [
+        "Tops & Shirts",
+        "Tshirts"
+    ]
+}
