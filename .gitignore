@@ -7,8 +7,7 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 # Environment files
-.env.*
-!.env.example
+
 # Authentication User file
 userSession.json
 
